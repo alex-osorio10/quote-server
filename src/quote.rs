@@ -7,7 +7,7 @@ use crate::KnockKnockError;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub struct JsonJoke {
+pub struct Jsonquote {
     id: String,
     whos_there: String,
     answer_who: String,
@@ -15,28 +15,28 @@ pub struct JsonJoke {
     source: String,
 }
 
-pub struct Joke {
+pub struct Quote {
     pub id: String,
     pub whos_there: String,
     pub answer_who: String,
-    pub joke_source: String,
+    pub quote_source: String,
 }
 
-pub fn read_jokes<P: AsRef<Path>>(jokes_path: P) -> Result<Vec<JsonJoke>, KnockKnockError> {
-    let f = std::fs::File::open(jokes_path.as_ref())?;
-    let jokes = serde_json::from_reader(f)?;
-    Ok(jokes)
+pub fn read_quotes<P: AsRef<Path>>(quotes_path: P) -> Result<Vec<Jsonquote>, KnockKnockError> {
+    let f = std::fs::File::open(quotes_path.as_ref())?;
+    let quotes = serde_json::from_reader(f)?;
+    Ok(quotes)
 }
 
-impl JsonJoke {
-    pub fn to_joke(&self) -> (Joke, impl Iterator<Item=&str>) {
-        let joke = Joke {
+impl Jsonquote {
+    pub fn to_quote(&self) -> (Quote, impl Iterator<Item = &str>) {
+        let quote = Quote {
             id: self.id.clone(),
             whos_there: self.whos_there.clone(),
             answer_who: self.answer_who.clone(),
-            joke_source: self.source.clone(),
+            quote_source: self.source.clone(),
         };
         let tags = self.tags.iter().map(String::deref);
-        (joke, tags)
+        (quote, tags)
     }
 }

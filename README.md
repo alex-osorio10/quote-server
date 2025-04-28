@@ -1,22 +1,22 @@
-# knock-knock-2: A Pure Rust Knock-Knock Joke Webserver, iteration 2
+# knock-knock-2: A Pure Rust Knock-Knock quote Webserver, iteration 2
 Bart Massey 2025-04
 
 This… thing uses a Tokio/Axum/Askama/Sqlx/Sqlite stack to
-serve knock-knock jokes.
+serve knock-knock quotes.
 
 # Build and Run
 
-By default the joke database URI is
+By default the quote database URI is
 `sqlite://db/knock-knock.db`. You can override this with the
-`KK2_JOKE_URI` environment variable or with the `--db-uri`
+`KK2_quote_URI` environment variable or with the `--db-uri`
 command-line argument.
 
 To build and run this code for the first time, you will
 probably want:
 
-    cargo run --release -- --init-from assets/static/jokes.json
+    cargo run --release -- --init-from assets/static/quotes.json
 
-This will load an initial collection of jokes into the
+This will load an initial collection of quotes into the
 newly-created database.
 
 ## Development

@@ -1,18 +1,18 @@
-use crate::*;
+use crate::quote::Quote;
 
 use askama::Template;
 
 #[derive(Template)]
 #[template(path = "index.html")]
 pub struct IndexTemplate<'a> {
-    joke: &'a Joke,
+    quote: &'a Quote,
     stylesheet: &'static str,
 }
 
 impl<'a> IndexTemplate<'a> {
-    pub fn joke(joke: &'a Joke) -> Self {
+    pub fn quote(quote: &'a Quote) -> Self {
         Self {
-            joke,
+            quote,
             stylesheet: "/knock.css",
         }
     }

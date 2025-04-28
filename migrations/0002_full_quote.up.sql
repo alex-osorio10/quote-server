@@ -1,15 +1,14 @@
-ALTER TABLE jokes RENAME TO jokes_v1;
+ALTER TABLE quotes RENAME TO quotes_v1;
 
-CREATE TABLE jokes (
+CREATE TABLE quotes (
   id VARCHAR(200) UNIQUE PRIMARY KEY NOT NULL,
   whos_there VARCHAR(200) NOT NULL,
   answer_who VARCHAR(200) NOT NULL,
-  joke_source VARCHAR(200) NOT NULL
+  quote_source VARCHAR(200) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS tags (
-  joke_id VARCHAR(200) NOT NULL,
+  quote_id VARCHAR(200) NOT NULL,
   tag VARCHAR(200) NOT NULL,
-  FOREIGN KEY (joke_id) REFERENCES jokes(id)
-);
-
+  FOREIGN KEY (quote_id) REFERENCES quotes(id)
+); 

@@ -1,4 +1,0 @@
-DROP TABLE IF EXISTS tags;
-DROP TABLE IF EXISTS jokes;
-ALTER TABLE jokes_v1 RENAME TO jokes;
-

@@ -11,10 +11,10 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: cargo clippy --release
+      - uses: actions/checkout@v3
+      - name: Build
+        run: cargo clippy --release
+        env:
+          SQLX_OFFLINE: "true"

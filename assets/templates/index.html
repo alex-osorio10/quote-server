@@ -1,23 +1,49 @@
+<!-- INDEX HTML FILE, set-up for website structure -->
+
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Knock-Knock</title>
-    <link rel="stylesheet" href="{{stylesheet}}">
-  </head>
-  <body>
-    <h1>Quote</h1>
 
-    <div class="quote">
-      <!--
-      <span class="teller">Knock-Knock!</span><br/>
-      <span class="tellee">Who's there?</span><br/>
-      <span class="teller">{{quote.whos_there}}</span><br/>
-      <span class="tellee">{{quote.whos_there}} who?</span><br/>
-      <span class="teller">{{quote.answer_who}}</span>
-      -->
-      
-      <span class="teller">"You cannot have bravery and courage without fear"</span>
+  <head>
+    <title>Quote Server</title>
+
+    <link rel="stylesheet" href="{{stylesheet}}"> </head>
+  <body>
+
+  <h1>Quote Server: NBA Athlete Quotes</h1>
+  <div class="quote-display">
+      <p class="speaker">{{ quote.whos_there }} says:</p>
+
+      <blockquote class="text">
+        "{{ quote.answer_who }}"
+      </blockquote>
+  </div>
+
+
+  <div class="info">
+      <span class="source">Quote Source: <a href="{{ quote.source }}" target="_blank" rel="noopener noreferrer">{{ quote.source }}</a></span>
+      <br/>
+
+      <span class="tags">Tags: {{ tags }}</span>
+  </div>
+  <hr/>
+
+  <form method="GET" action="/"> <div>
+        <label for="tags-input">Filter by Tags (separated by comma, e.g., Los Angeles Lakers, lakers):</label><br/>
+
+        <input type="text" name="tags" id="tags-input" placeholder="e.g., Los Angeles Lakers, lakers"/>
     </div>
-    
+    <div>
+        <button type="submit">Get Quote by Tags / Random Quotes</button>
+    </div>
+
+  </form>
+
+  <p><a href="/">*Get another random quote*</a></p>
+
   </body>
+
 </html>
+
+
+
+

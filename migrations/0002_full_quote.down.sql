@@ -1,4 +1,0 @@
-DROP TABLE IF EXISTS tags;
-DROP TABLE IF EXISTS quotes;
-ALTER TABLE quotes_v1 RENAME TO quotes;
-

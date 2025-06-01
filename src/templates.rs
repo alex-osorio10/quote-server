@@ -1,19 +1,28 @@
+// templates.rs
 use crate::quote::Quote;
+use askama::Template; 
 
-use askama::Template;
 
 #[derive(Template)]
-#[template(path = "index.html")]
-pub struct IndexTemplate<'a> {
-    quote: &'a Quote,
-    stylesheet: &'static str,
+#[template(path = "index.html")] 
+pub struct IndexTemplate {
+    pub quote: Quote, pub stylesheet: &'static str, pub tags: String,
 }
 
-impl<'a> IndexTemplate<'a> {
-    pub fn quote(quote: &'a Quote) -> Self {
+impl IndexTemplate 
+{
+    pub fn new(quote: Quote, tags: String) -> Self 
+    {
+
+
         Self {
-            quote,
-            stylesheet: "/knock.css",
+
+            quote, stylesheet: "/style.css", tags,
         }
     }
+
 }
+
+
+
+

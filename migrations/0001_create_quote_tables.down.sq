@@ -1,0 +1,4 @@
+-- migration reverts the creation of the 'quote_tags' and 'quotes' tables.
+
+DROP TABLE IF EXISTS quote_tags;
+DROP TABLE IF EXISTS quotes;

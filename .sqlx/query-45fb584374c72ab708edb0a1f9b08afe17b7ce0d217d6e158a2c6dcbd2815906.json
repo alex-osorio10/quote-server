@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO quote_tags (quote_id, tag) VALUES ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "45fb584374c72ab708edb0a1f9b08afe17b7ce0d217d6e158a2c6dcbd2815906"
+}

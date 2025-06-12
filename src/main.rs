@@ -5,56 +5,48 @@ mod quote;
 mod templates;
 mod web;
 mod api;
+mod authjwt;
 
 use crate::quote::read_quotes_from_file;
-
 use axum::{
-
-    http::{StatusCode, Method}, response::IntoResponse, routing::get, Router,
+    http::{Method, StatusCode},
+    response::IntoResponse,
+    routing::get,
+    Router,
 };
 
 use clap::Parser;
-use sqlx::{
-
-    migrate::MigrateDatabase, sqlite::SqliteConnectOptions, ConnectOptions, SqlitePool
-};
-
-
+use sqlx::{migrate::MigrateDatabase, sqlite::SqliteConnectOptions, ConnectOptions, SqlitePool};
 use std::borrow::Cow;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::{net::TcpListener, sync::RwLock};
-
-
-
+use tokio::{net::TcpListener, signal, sync::RwLock, time::Duration};
 use tower_http::{
-    cors::{Any, CorsLayer}, services::ServeFile,
-    trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
+    cors::{Any, CorsLayer}, services::ServeFile, trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
 };
+
 
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use utoipa::OpenApi;
 use utoipa_rapidoc::RapiDoc;
 use utoipa_swagger_ui::SwaggerUi;
 
-
 #[derive(Parser, Debug)]
-struct Args 
-{
+struct Args {
     #[arg(short, long, name = "init-from")]
     init_from: Option<std::path::PathBuf>,
     #[arg(long, env = "DATABASE_URL")]
     db_uri: Option<String>,
+    #[arg(long, default_value = "127.0.0.1")]
+    ip: String,
     #[arg(short, long, default_value = "3000", env = "PORT")]
     port: u16,
 }
 
-
-
-#[derive(Clone)]
-pub struct AppState 
-{
+pub struct AppState {
     pub db: SqlitePool,
+    pub jwt_keys: authjwt::JwtKeys,
+    pub reg_key: String,
 }
 
 
@@ -64,21 +56,26 @@ fn get_db_uri_from_args_or_env(args_db_uri: Option<&str>) -> Cow<str> {
         uri.into()
     } else if let Ok(uri) = std::env::var("DATABASE_URL") {
         uri.into()
-    } else {
+    } else 
+    {
         "sqlite:db/quotes.db".into()
     }
+
+
 }
+
+
 
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        crate::api::get_quote_api,
-        crate::api::get_tagged_quote_api,
-        crate::api::get_random_quote_api
+        crate::api::get_quote_api, crate::api::get_tagged_quote_api, crate::api::get_random_quote_api, crate::api::register, crate::api::add_quote
     ),
     components(
-        schemas(crate::quote::Quote, crate::quote::JsonQuote)
+        schemas(
+            crate::quote::Quote, crate::quote::JsonQuote, crate::authjwt::Registration, crate::authjwt::AuthBody, crate::authjwt::AuthError, crate::authjwt::Claims,
+        )
     ),
     tags(
         (name = "quote_server", description = "Quote API for NBA enthusiasts")
@@ -86,35 +83,55 @@ fn get_db_uri_from_args_or_env(args_db_uri: Option<&str>) -> Cow<str> {
 )]
 struct ApiDoc;
 
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to create SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("Received Ctrl+C (SIGINT), starting graceful shutdown...");
+        },
+        _ = terminate => {
+            tracing::info!("Received terminate signal, starting graceful shutdown...");
+        },
+    }
+
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    tracing::info!("Graceful shutdown complete.");
+}
 
 async fn run_app() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     let args = Args::parse();
+    
     let db_uri_str = get_db_uri_from_args_or_env(args.db_uri.as_deref());
     let db_uri = db_uri_str.as_ref();
 
-    if !sqlx::Sqlite::database_exists(db_uri).await.unwrap_or(false) 
-    
-    {
-        if let Some(colon_idx) = db_uri.rfind(':') 
-        {
+    if !sqlx::Sqlite::database_exists(db_uri).await.unwrap_or(false) {
+        if let Some(colon_idx) = db_uri.rfind(':') {
             let path_part = &db_uri[colon_idx + 1..];
-            if let Some(last_slash_idx) = path_part.rfind('/') 
-            
-            {
+            if let Some(last_slash_idx) = path_part.rfind('/') {
                 let dir_to_create = &path_part[..last_slash_idx];
                 if !dir_to_create.is_empty() {
                     tokio::fs::create_dir_all(dir_to_create).await?;
                 }
-
-
             }
-
         }
-
-
         sqlx::Sqlite::create_database(db_uri).await?;
-
     }
 
     let connect_options = SqliteConnectOptions::from_str(db_uri)?
@@ -123,14 +140,14 @@ async fn run_app() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_pool = SqlitePool::connect_with(connect_options).await?;
     sqlx::migrate!("./migrations").run(&db_pool).await?;
+    
 
-    if let Some(path) = args.init_from 
-    {
+
+    if let Some(path) = args.init_from {
         tracing::info!("Initializing database from: {:?}", path);
         let json_quotes_vec = read_quotes_from_file(path)?;
-    'outer_init_loop: for jq_item in json_quotes_vec {
+        'outer_init_loop: for jq_item in json_quotes_vec {
             let (quote_data, tags_iter) = jq_item.to_quote();
-
             let mut tx = db_pool.begin().await?;
             
             let insert_res = sqlx::query!(
@@ -146,14 +163,14 @@ async fn run_app() -> Result<(), Box<dyn std::error::Error>> {
                 continue 'outer_init_loop;
             }
 
+
             for tag_val in tags_iter {
                 let normalized_tag = tag_val.trim().to_lowercase();
                 if normalized_tag.is_empty() { continue; }
 
                 let tag_res = sqlx::query!(
                     "INSERT OR IGNORE INTO quote_tags (quote_id, tag) VALUES ($1, $2)",
-                    quote_data.id,
-                    normalized_tag
+                    quote_data.id, normalized_tag
                 )
                 .execute(&mut *tx)
                 .await;
@@ -162,21 +179,31 @@ async fn run_app() -> Result<(), Box<dyn std::error::Error>> {
                     tx.rollback().await?;
                     continue 'outer_init_loop;
                 }
-
-
             }
             if let Err(e) = tx.commit().await {
                 tracing::error!("Failed to commit transaction for quote {}: {}", quote_data.id, e);
             }
         }
-
         tracing::info!("Database initialization complete.");
-
-        
     }
 
-    let app_state = AppState { db: db_pool };
+
+
+
+    let jwt_keys = authjwt::make_jwt_keys().await.unwrap_or_else(|e| {
+        tracing::error!("Failed to create JWT keys: {}", e);
+        std::process::exit(1);
+    });
+    let reg_key = authjwt::read_secret("REG_PASSWORD", "secrets/reg_password.txt").await.unwrap_or_else(|e| {
+        tracing::error!("Failed to read registration password: {}", e);
+        std::process::exit(1);
+    });
+
+    let app_state = AppState { db: db_pool, jwt_keys, reg_key };
     let shared_state = Arc::new(RwLock::new(app_state));
+
+
+
 
     tracing_subscriber::registry()
         .with(
@@ -188,49 +215,55 @@ async fn run_app() -> Result<(), Box<dyn std::error::Error>> {
 
     let trace_layer = TraceLayer::new_for_http()
         .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
-        .on_response(DefaultOnResponse::new().level(tracing::Level::INFO));
 
+
+
+        .on_response(DefaultOnResponse::new().level(tracing::Level::INFO));
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_origin(Any);
-
     let mime_favicon = "image/vnd.microsoft.icon".parse::<mime::Mime>().unwrap();
     let mime_css = mime::TEXT_CSS_UTF_8;
-    
+
     let openapi_document: utoipa::openapi::OpenApi = ApiDoc::openapi();
 
     let app = Router::new()
         .route("/", get(web::get_main_page_handler))
-        .route_service(
-            "/style.css",
-            ServeFile::new_with_mime("assets/static/style.css", &mime_css),
-        )
-        .route_service(
+        .route_service("/style.css", ServeFile::new_with_mime("assets/static/style.css", &mime_css))
+
+        .route_service("/favicon.ico", ServeFile::new_with_mime("assets/static/favicon.ico", &mime_favicon))
 
 
-            "/favicon.ico",
-            ServeFile::new_with_mime("assets/static/favicon.ico", &mime_favicon),
-        )
         .nest("/api/v1", api::router())
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi_document.clone()))
+
         .merge(RapiDoc::new("/api-docs/openapi.json").path("/rapidoc"))
         .fallback(handler_404)
+
+
         .layer(cors)
         .layer(trace_layer)
         .with_state(shared_state);
-    let listener = TcpListener::bind(&format!("127.0.0.1:{}", args.port)).await?;
-    tracing::info!("Quote server listening on http://127.0.0.1:{}", args.port);
-    axum::serve(listener, app).await?;
+
+    let listener = TcpListener::bind(&format!("{}:{}", args.ip, args.port)).await?;
+    tracing::info!("Quote server listening on http://{}:{}", args.ip, args.port);
+    
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+        
     Ok(())
-
-
 }
+
+
+
 
 
 async fn handler_404() -> impl IntoResponse {
     (StatusCode::NOT_FOUND, "Oops! Page not found.")
-
 }
+
+
 
 #[tokio::main]
 async fn main() {
@@ -241,5 +274,7 @@ async fn main() {
 
 
 
+
 }
+
 

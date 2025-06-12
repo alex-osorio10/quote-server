@@ -8,15 +8,24 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
 pub struct JsonQuote {
-    pub id: String, pub whos_there: String, pub answer_who: String, pub tags: HashSet<String>, pub source: String,
+    pub id: String,
+    pub whos_there: String,
+    pub answer_who: String,
+    pub tags: HashSet<String>,
+    pub source: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct Quote {
-    pub id: String, pub whos_there: String, pub answer_who: String, pub source: String,
+    pub id: String,
+    pub whos_there: String,
+    pub answer_who: String,
+    pub source: String,
 }
 
-pub fn read_quotes_from_file<P: AsRef<Path>>(quotes_path: P) -> Result<Vec<JsonQuote>, QuoteAppError> {
+pub fn read_quotes_from_file<P: AsRef<Path>>(
+    quotes_path: P,
+) -> Result<Vec<JsonQuote>, QuoteAppError> {
     let f = std::fs::File::open(quotes_path.as_ref())?;
     let quotes: Vec<JsonQuote> = serde_json::from_reader(f)?;
     Ok(quotes)
@@ -26,28 +35,30 @@ impl JsonQuote {
     pub fn new(quote: &Quote, tags: Vec<String>) -> Self {
         let tags_set = tags.into_iter().collect();
         Self {
-            id: quote.id.clone(), whos_there: quote.whos_there.clone(), answer_who: quote.answer_who.clone(), tags: tags_set, source: quote.source.clone(),
+            id: quote.id.clone(),
+            whos_there: quote.whos_there.clone(),
+            answer_who: quote.answer_who.clone(),
+            tags: tags_set,
+            source: quote.source.clone(),
         }
-
-
-
     }
 
     pub fn to_quote(&self) -> (Quote, impl Iterator<Item = &str>) {
         let quote = Quote {
-            id: self.id.clone(), whos_there: self.whos_there.clone(), answer_who: self.answer_who.clone(), source: self.source.clone(),
+            id: self.id.clone(),
+            whos_there: self.whos_there.clone(),
+            answer_who: self.answer_who.clone(),
+            source: self.source.clone(),
         };
         let tags_iter = self.tags.iter().map(String::as_str);
         (quote, tags_iter)
-
-        
     }
-
-
-
 }
 
-pub async fn get_quote_by_id_from_db(db: &SqlitePool, quote_id: &str) -> Result<(Quote, Vec<String>), sqlx::Error> {
+pub async fn get_quote_by_id_from_db(
+    db: &SqlitePool,
+    quote_id: &str,
+) -> Result<(Quote, Vec<String>), sqlx::Error> {
     let quote = sqlx::query_as!(
         Quote,
         "SELECT id, whos_there, answer_who, source FROM quotes WHERE id = $1;",
@@ -56,36 +67,19 @@ pub async fn get_quote_by_id_from_db(db: &SqlitePool, quote_id: &str) -> Result<
     .fetch_one(db)
     .await?;
 
-
-    let tags: Vec<String> = sqlx::query_scalar!(
-        "SELECT tag FROM quote_tags WHERE quote_id = $1;",
-        quote_id
-    )
-
-
-    .fetch_all(db)
-
-    .await?;
+    let tags: Vec<String> =
+        sqlx::query_scalar!("SELECT tag FROM quote_tags WHERE quote_id = $1;", quote_id)
+            .fetch_all(db)
+            .await?;
 
     Ok((quote, tags))
-
-
-
 }
-
-
-
-
 
 pub async fn get_random_quote_id_from_db(db: &SqlitePool) -> Result<String, sqlx::Error> {
     sqlx::query_scalar!("SELECT id FROM quotes ORDER BY RANDOM() LIMIT 1;")
         .fetch_one(db)
         .await
 }
-
-
-
-
 
 pub async fn get_tagged_quote_id_from_db<'a, I>(
     db: &SqlitePool,
@@ -111,18 +105,11 @@ where
                 .await?;
             has_tags = true;
         }
-
-
-
-
     }
 
     if !has_tags {
         tx.commit().await?;
         return Ok(None);
-
-
-
     }
 
     let query_str = "
@@ -141,15 +128,9 @@ where
 
     tx.commit().await?;
     Ok(result_id)
-
-
-
 }
 
 pub async fn add_quote_to_db(db: &SqlitePool, quote: JsonQuote) -> Result<(), sqlx::Error> {
-
-
-
     let mut tx = db.begin().await?;
 
     sqlx::query!(
@@ -175,8 +156,4 @@ pub async fn add_quote_to_db(db: &SqlitePool, quote: JsonQuote) -> Result<(), sq
     tx.commit().await?;
 
     Ok(())
-
-
-
-
 }

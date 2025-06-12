@@ -1,35 +1,33 @@
 // api.rs
+use crate::authjwt::{self, Claims, Registration};
 use crate::quote::{self, JsonQuote};
 use crate::AppState;
-use crate::authjwt::{self, Claims, Registration};
 use axum::{
-    extract::{Path, State, Json},
+    extract::{Json, Path, State},
     http::{self, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post}, 
+    routing::{get, post},
     Router,
 };
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-
 pub fn router() -> Router<Arc<RwLock<AppState>>> {
     Router::new()
         .route("/quote/{quote_id}", get(get_quote_api))
-
-
         .route("/tagged-quote", post(get_tagged_quote_api))
         .route("/random-quote", get(get_random_quote_api))
         .route("/register", post(register))
         .route("/add-quote", post(add_quote))
 }
 
-async fn get_quote_data_for_api(db: &sqlx::SqlitePool, quote_id: &str) -> Result<Response, http::StatusCode> {
+async fn get_quote_data_for_api(
+    db: &sqlx::SqlitePool,
+    quote_id: &str,
+) -> Result<Response, http::StatusCode> {
     match quote::get_quote_by_id_from_db(db, quote_id).await {
         Ok((quote_obj, tags_vec)) => {
             let json_response = JsonQuote::new(&quote_obj, tags_vec);
-
-
 
             Ok(Json(json_response).into_response())
         }
@@ -37,19 +35,11 @@ async fn get_quote_data_for_api(db: &sqlx::SqlitePool, quote_id: &str) -> Result
             tracing::warn!("API: quote fetch failed for id {}: {}", quote_id, e);
             if matches!(e, sqlx::Error::RowNotFound) {
                 Err(StatusCode::NOT_FOUND)
-            } else 
-            {
+            } else {
                 Err(StatusCode::INTERNAL_SERVER_ERROR)
             }
-
         }
-
-
     }
-
-
-
-
 }
 
 #[utoipa::path(
@@ -72,7 +62,6 @@ pub async fn get_quote_api(
     get_quote_data_for_api(&state_guard.db, &quote_id).await
 }
 
-
 #[utoipa::path(
     post,
     path = "/api/v1/tagged-quote",
@@ -91,12 +80,11 @@ pub async fn get_tagged_quote_api(
     let state_guard = app_state.read().await;
 
     let db_pool = &state_guard.db;
-    match quote::get_tagged_quote_id_from_db(db_pool, tags_payload.iter().map(String::as_str)).await {
+    match quote::get_tagged_quote_id_from_db(db_pool, tags_payload.iter().map(String::as_str)).await
+    {
         Ok(Some(found_quote_id)) => get_quote_data_for_api(db_pool, &found_quote_id).await,
         Ok(None) => {
             tracing::info!("API: No quote found for tags: {:?}", tags_payload);
-
-
 
             Err(StatusCode::NOT_FOUND)
         }
@@ -104,13 +92,8 @@ pub async fn get_tagged_quote_api(
             tracing::error!("API: Database error fetching tagged quote: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
-
-
     }
-
-
 }
-
 
 #[utoipa::path(
     get,
@@ -139,7 +122,6 @@ pub async fn get_random_quote_api(
     }
 }
 
-
 #[utoipa::path(
     post,
     path = "/api/v1/register",
@@ -159,7 +141,6 @@ pub async fn register(
         Err(e) => e.into_response(),
     }
 }
-
 
 #[utoipa::path(
     post,
@@ -185,12 +166,8 @@ pub async fn add_quote(
         Ok(()) => StatusCode::CREATED.into_response(),
         Err(e) => {
             tracing::error!("API: Failed to add quote: {}", e);
-            
+
             (StatusCode::BAD_REQUEST, e.to_string()).into_response()
         }
-
-
     }
-
 }
-

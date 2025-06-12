@@ -2,7 +2,7 @@ use crate::AppState;
 // The `async_trait` import is no longer needed.
 // use async_trait::async_trait;
 use axum::{
-    extract::{FromRequestParts, FromRef},
+    extract::{FromRef, FromRequestParts},
     http::{request::Parts, StatusCode},
     response::{IntoResponse, Json, Response},
     RequestPartsExt,
@@ -33,7 +33,10 @@ impl JwtKeys {
     }
 }
 
-pub async fn read_secret(env_var: &str, default_path: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn read_secret(
+    env_var: &str,
+    default_path: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     let secret_file_path = std::env::var(env_var).unwrap_or_else(|_| default_path.to_owned());
     let secret = tokio::fs::read_to_string(secret_file_path).await?;
     Ok(secret.trim().to_string())
@@ -93,8 +96,14 @@ impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
             AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid authentication token."),
-            AuthError::TokenCreation => (StatusCode::INTERNAL_SERVER_ERROR, "Internal error creating token."),
-            AuthError::InvalidRegistrationKey => (StatusCode::UNAUTHORIZED, "Invalid registration key provided."),
+            AuthError::TokenCreation => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal error creating token.",
+            ),
+            AuthError::InvalidRegistrationKey => (
+                StatusCode::UNAUTHORIZED,
+                "Invalid registration key provided.",
+            ),
         };
         let body = Json(serde_json::json!({ "error": error_message }));
         (status, body).into_response()
@@ -109,10 +118,7 @@ where
 {
     type Rejection = AuthError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         // Extract the token from the authorization header
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
@@ -133,7 +139,6 @@ where
         Ok(token_data.claims)
     }
 }
-
 
 pub fn register_and_create_token(
     app_state: &AppState,

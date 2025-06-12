@@ -4,7 +4,9 @@ use crate::templates::IndexTemplate;
 use crate::AppState;
 use askama::Template;
 use axum::{
-    extract::{Query, State}, http::StatusCode, response::{Html, IntoResponse, Redirect, Response},
+    extract::{Query, State},
+    http::StatusCode,
+    response::{Html, IntoResponse, Redirect, Response},
 };
 
 use serde::Deserialize;
@@ -13,9 +15,9 @@ use tokio::sync::RwLock;
 
 #[derive(Deserialize, Debug)]
 pub struct GetQuoteParams {
-    id: Option<String>, tags: Option<String>,
+    id: Option<String>,
+    tags: Option<String>,
 }
-
 
 pub async fn get_main_page_handler(
     State(app_state): State<Arc<RwLock<AppState>>>,
@@ -29,12 +31,10 @@ pub async fn get_main_page_handler(
             tracing::debug!("Web: Fetching quote by tags: {}", tags_query_str);
             let search_tags_vec: Vec<&str> = tags_query_str
                 .split(',')
-
-
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .collect();
-            
+
             if !search_tags_vec.is_empty() {
                 match quote::get_tagged_quote_id_from_db(db, search_tags_vec.into_iter()).await {
                     Ok(Some(found_quote_id)) => {
@@ -47,19 +47,9 @@ pub async fn get_main_page_handler(
                     Err(e) => {
                         tracing::error!("Web: DB error fetching tagged quote: {}", e);
                     }
-
-
-
                 }
-
-
-                
             }
-
-
         }
-
-
     }
 
     if let Some(id_str) = params.id {
@@ -70,13 +60,13 @@ pub async fn get_main_page_handler(
                 return Ok(Html(template.render().unwrap()).into_response());
             }
             Err(e) => {
-                tracing::warn!("Web: Could not find quote by ID {}: {}. Getting random.", id_str, e);
+                tracing::warn!(
+                    "Web: Could not find quote by ID {}: {}. Getting random.",
+                    id_str,
+                    e
+                );
             }
-
-
         }
-
-
     }
 
     tracing::debug!("Web: Fetching random quote ID for redirect.");
@@ -86,24 +76,20 @@ pub async fn get_main_page_handler(
             Ok(Redirect::to(&uri).into_response())
         }
         Err(e) => {
-
             tracing::error!("Web: Could not get any random quote from DB: {}", e);
             let fallback_quote = Quote {
                 id: "error".to_string(),
                 whos_there: "Oh no!".to_string(),
 
-                answer_who: "The quote you were looking for decided to take a day off. Try another!".to_string(),
+                answer_who:
+                    "The quote you were looking for decided to take a day off. Try another!"
+                        .to_string(),
 
                 source: "The Server".to_string(),
             };
             let template = IndexTemplate::new(fallback_quote, "error".to_string());
 
-
-
             Ok(Html(template.render().unwrap()).into_response())
         }
-
     }
-
-
 }
